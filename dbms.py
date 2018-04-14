@@ -1,8 +1,11 @@
-
+import os
+import stripe
 from flask import *
+from werkzeug.utils import secure_filename
 import MySQLdb
 import requests
 import sys
+import datetime
 app = Flask(__name__)
 
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "root", db="dbms")
@@ -13,6 +16,9 @@ wrong_email = False
 already_taken = False
 wrong = False
 uid = ""
+curr_photo = ""
+payment_method=""
+new_id = 0
 @app.route("/")
 def hello():
     return render_template("index.html",logged_in=logged_in,name=name)
@@ -75,6 +81,8 @@ def log():
 
 @app.route("/myaccount", methods=['GET','POST'])
 def myacc():
+    if uid == "1":
+        return redirect("/add_items")
     if logged_in == False:
         return redirect("/404")
     qu = "select * from users where user_id=%s and name=%s"
@@ -136,12 +144,280 @@ def add_details():
 
 @app.route("/photos", methods=['GET','POST'])
 def photos():
-    return render_template("photos.html",logged_in=logged_in, name=name)
+    qu = "select * from photos"
+    c.execute(qu)
+    photo = c.fetchall()
+    return render_template("photos.html",logged_in=logged_in, name=name,photo=photo)
 
 @app.route("/products", methods=['GET','POST'])
 def products():
-    return render_template("products.html",logged_in=logged_in, name=name)
+    if logged_in == False:
+        return redirect("/register")
+    qu = "select * from photos,uploads where uploads.photo_id = photos.photo_id and uploads.user_id=%s"
+    c.execute(qu,[uid])
+    photo = c.fetchall()
+    print photo
+    return render_template("products.html",logged_in=logged_in, name=name,photo=photo)
 
+@app.route("/add_items", methods=['GET','POST'])
+def add_items():
+    return render_template("add-items.html",logged_in=logged_in, name=name)
+
+@app.route("/add_photo", methods=['GET','POST'])
+def add_photo():
+    qu = "insert into photos(name,link,base,from_user) values(%s,%s,%s,%s)"
+    c.execute(qu,(request.form["photo_name"], request.form["photo_link"], int(request.form["photo_base"]), 0))
+    conn.commit()
+    return redirect("/add_items")
+
+@app.route("/add_size", methods=['GET','POST'])
+def add_size():
+    qu = "insert into size_cost values(%s,%s)"
+    c.execute(qu,(request.form["size"], float(request.form["multi"])))
+    conn.commit()
+    return redirect("/add_items")
+
+
+app.config['UPLOAD_FOLDER'] = './static/uploads'
+
+@app.route("/upload_photo", methods=['GET','POST'])
+def upload():
+    if request.method == 'POST':
+        photo = request.files['file']
+        filename = secure_filename(photo.filename)
+        photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        qu = "insert into photos(name,link,base,from_user) values(%s,%s,%s,%s)"
+        c.execute(qu, (photo.filename, "." + app.config['UPLOAD_FOLDER'] + "/" + filename , 150, 1))
+        conn.commit()
+        qu = "select photo_id from photos order by photo_id desc limit 1"
+        c.execute(qu)
+        x = int(c.fetchone()[0])
+        qu = "insert into uploads(photo_id,user_id) values(%s,%s)"
+        c.execute(qu, (x,uid))
+        conn.commit()
+        global curr_photo
+        qu = "select * from photos order by photo_id desc limit 1"
+        c.execute(qu)
+        curr_photo = c.fetchone()
+        print curr_photo
+        return redirect("/photo_detail/" + str(curr_photo[0]))
+
+@app.route("/photo_go", methods=['GET','POST'])
+def deta():
+    global curr_photo
+    curr_photo = (request.form["photo_things0"], request.form["photo_things1"], request.form["photo_things2"], request.form["photo_things3"])
+    return redirect("/photo_detail/" + str(curr_photo[0]).strip())
+
+@app.route("/photo_detail/<id>", methods=['GET','POST'])
+def gogo(id):
+    print "here"
+    global curr_photo
+    qu = "select * from photos where photo_id=%s"
+    c.execute(qu,[id])
+    curr_photo = c.fetchone()
+    print curr_photo
+    qu = "select * from size_cost order by multiplier"
+    c.execute(qu)
+    size_table = c.fetchall()
+    qu = "select count(*) from size_cost order by multiplier"
+    c.execute(qu)
+    size_entries = int(c.fetchone()[0])
+    size_dict = {}
+    for size in size_table:
+        size_dict[size[0]] = size[1]
+    print size_dict
+    return render_template("detail.html", logged_in=logged_in, name=name, curr_photo=curr_photo, size_table = size_table, size_dict = size_dict)
+
+@app.route("/basket", methods=['GET','POST'])
+def basket():
+    qu = "select *,C.quantity*C.cost from carts C,photos P where C.photo_id = P.photo_id && C.user_id = %s"
+    c.execute(qu,[uid])
+    cart = c.fetchall()
+    cost = [int(x[2]) * int(x[4]) for x in cart]
+    total_cost = sum(cost)
+    return render_template("basket.html",logged_in=logged_in, name=name, cart=cart,cost=cost,total_cost=total_cost)
+
+@app.route("/addbasket", methods=['GET','POST'])
+def add_basket():
+    if logged_in == False:
+        return redirect("/register")
+    s_size = request.form["selected_size"].split('-')
+    photo_id = curr_photo[0]
+    quantity = request.form["quantity"]
+    cost = float(s_size[1]) * curr_photo[3]
+    size = s_size[0]
+    qu = "insert into carts(user_id,photo_id,quantity,size,cost) values(%s,%s,%s,%s,%s)"
+    c.execute(qu,(uid,photo_id,quantity,size,cost))
+    conn.commit()
+    return redirect("/basket")
+
+@app.route("/delete/<id>", methods=['GET','POST'])
+def dele(id):
+    qu = "delete from carts where user_id=%s and item_id=%s"
+    c.execute(qu,(uid,id))
+    conn.commit()
+    return redirect("/basket")
+
+@app.route("/delete_upload/<id>", methods=['GET','POST'])
+def deel(id):
+    qu = "delete from uploads where photo_id=%s"
+    c.execute(qu,[id])
+    conn.commit()
+    return redirect("/products")
+
+@app.route("/checkout1", methods=['GET','POST'])
+def check1():
+    if logged_in == False:
+        return redirect("/register")
+    qu = "select * from users where user_id=%s and name=%s"
+    c.execute(qu, (uid, name))
+    data = c.fetchone()
+    qu = "select *,C.quantity*C.cost from carts C,photos P where C.photo_id = P.photo_id && C.user_id = %s"
+    c.execute(qu, [uid])
+    cart = c.fetchall()
+    cost = [int(x[2]) * int(x[4]) for x in cart]
+    total_cost = sum(cost)
+    return render_template("checkout1.html",logged_in=logged_in, name=name, data=data, total_cost=total_cost, ship=total_cost+50)
+
+@app.route("/update_add", methods=['GET','POST'])
+def update_add():
+    uname = request.form["fname"]
+    uemail = request.form["email"]
+    uaddress1 = request.form["address1"]
+    uaddress2 = request.form["address2"]
+    ucity = request.form["city"]
+    ustate = request.form["state"]
+    ucountry = request.form["country"]
+    uzip = request.form["zip"]
+    utelephone = request.form["telephone"]
+
+    qu = "update users set name=%s, email=%s, address1=%s, address2=%s, city=%s, state=%s, country=%s, zip=%s, telephone=%s where user_id=%s"
+    c.execute(qu, (uname, uemail, uaddress1, uaddress2, ucity, ustate, ucountry, uzip, utelephone, uid))
+    conn.commit()
+    global name
+    name = uname
+    return redirect("/checkout2")
+
+@app.route("/checkout2", methods=['GET','POST'])
+def check2():
+    if logged_in == False:
+        return redirect("/register")
+    qu = "select *,C.quantity*C.cost from carts C,photos P where C.photo_id = P.photo_id && C.user_id = %s"
+    c.execute(qu, [uid])
+    cart = c.fetchall()
+    cost = [int(x[2]) * int(x[4]) for x in cart]
+    total_cost = sum(cost)
+    return render_template("checkout2.html",logged_in=logged_in, name=name, total_cost=total_cost, ship=total_cost+50)
+
+@app.route("/checkout3", methods=['GET','POST'])
+def check3():
+    if logged_in == False:
+        return redirect("/register")
+    qu = "select *,C.quantity*C.cost from carts C,photos P where C.photo_id = P.photo_id && C.user_id = %s"
+    c.execute(qu, [uid])
+    cart = c.fetchall()
+    cost = [int(x[2]) * int(x[4]) for x in cart]
+    total_cost = sum(cost)
+    return render_template("checkout3.html",logged_in=logged_in, name=name, total_cost=total_cost,ship=total_cost+50)
+
+@app.route("/checkout4", methods=['GET','POST'])
+def check4():
+    if logged_in == False:
+        return redirect("/register")
+    credit = request.form["payment"]
+    global payment_method
+    if credit == "payment3":
+        payment_method = "cod"
+    else:
+        payment_method = "credit"
+
+    qu = "select *,C.quantity*C.cost from carts C,photos P where C.photo_id = P.photo_id && C.user_id = %s"
+    c.execute(qu, [uid])
+    cart = c.fetchall()
+    cost = [int(x[2]) * int(x[4]) for x in cart]
+    total_cost = sum(cost)
+
+    return render_template("checkout4.html",logged_in=logged_in, name=name, cart=cart, cost=cost, total_cost=total_cost, ship=total_cost+50)
+
+@app.route("/add_order", methods=['GET','POST'])
+def add_order():
+    if payment_method == "credit":
+        return redirect("/trans")
+    qu = "select *,C.quantity*C.cost from carts C,photos P where C.photo_id = P.photo_id && C.user_id = %s"
+    c.execute(qu, [uid])
+    cart = c.fetchall()
+    cost = [int(x[2]) * int(x[4]) for x in cart]
+    total_cost = sum(cost)
+    qu = "select count(*) from (select count(*) from orders group by order_id) as x"
+    rc = c.execute(qu)
+    if rc > 0:
+        new_id = int(c.fetchone()[0]) + 1
+    else:
+        new_id = 1
+    print new_id
+    for item in cart:
+        qu = "insert into orders(order_id,user_id,photo_id,quantity,size,cost) values(%s,%s,%s,%s,%s,%s)"
+        c.execute(qu,(new_id,item[0],item[1],item[2],item[3],item[4]))
+        conn.commit()
+
+    now = datetime.datetime.now()
+    date = str(now.year) + "-" + str(now.month) + "-" + str(now.day)
+    print date
+    qu = "insert into cust_order values(%s,%s,%s,%s,%s,%s,%s)"
+    global new_id
+    c.execute(qu,(uid,new_id,total_cost+50,date,payment_method,"Order Pending",0))
+    conn.commit()
+    qu = "delete from carts where user_id=%s"
+    c.execute(qu, [uid])
+    conn.commit()
+    return redirect("/orders")
+
+@app.route("/trans",methods=['GET','POST'])
+def trans():
+    return redirect(location="https://www.instamojo.com/@hj_0789/")
+
+@app.route("/orders", methods=['GET','POST'])
+def orders():
+    qu = "select * from cust_order where user_id=%s"
+    c.execute(qu,[uid])
+    orders = c.fetchall()
+    return render_template("customer-orders.html", logged_in=logged_in, name=name, orders=orders)
+
+@app.route("/post", methods=['GET','POST'])
+def req():
+    qu = "select * from cust_order order by flag"
+    c.execute(qu)
+    data = c.fetchall()
+    requests = []
+    for some in data:
+        temp = []
+        qu = "select email from users where user_id=%s"
+        c.execute(qu, [some[0]])
+        uemail = c.fetchone()[0]
+        temp.append(some[1])
+        temp.append(uemail)
+        temp.append(some[5])
+        requests.append(temp)
+    return render_template("post.html",logged_in=logged_in, name=name,requests=requests)
+
+@app.route("/approve_order/<id>", methods=['GET','POST'])
+def approve(id):
+    qu = "update cust_order set status='Order Placed', flag=1 where order_id=%s"
+    c.execute(qu,[id])
+    conn.commit()
+    return redirect("/post")
+
+
+@app.route("/cancel_order/<id>", methods=['GET','POST'])
+def cancel(id):
+    qu = "update cust_order set status='Order Cancelled', flag=1 where order_id=%s"
+    c.execute(qu,[id])
+    conn.commit()
+    return redirect("/post")
+
+@app.route("/view_order/<id>", methods=['GET','POST'])
+def viewe(id):
+    return render_template("customer-order.html",logged_in=logged_in,name=name)
 app.secret_key = 'asd'
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=True)
