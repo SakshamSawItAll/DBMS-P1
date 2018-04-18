@@ -6,6 +6,36 @@ import MySQLdb
 import requests
 import sys
 import datetime
+import sendgrid
+
+def send_mail(receiver, email_template, subject):
+    sg = sendgrid.SendGridAPIClient(apikey=os.environ.get('SENDGRID_API_KEY'))
+
+    data = {
+        "personalizations": [
+            {
+                "to": [
+                    {
+                        "email": receiver
+                    }
+                ],
+                "subject": subject
+            }
+        ],
+        "from": {
+            "email": "hj.harshit007@gmail.com",
+            "name": "Obaju"
+        },
+        "content": [
+            {
+                "type": "text/html",
+                "value": email_template
+            }
+        ]
+    }
+    response = sg.client.mail.send.post(request_body=data)
+
+
 app = Flask(__name__)
 
 conn = MySQLdb.connect(host = "localhost", user = "root", passwd = "root", db="dbms")
@@ -81,7 +111,7 @@ def log():
 
 @app.route("/myaccount", methods=['GET','POST'])
 def myacc():
-    if session["uid"] == "1":
+    if session["uid"] == 1:
         return redirect("/add_items")
     if session.get("logged_in", False) == False:
         return redirect("/404")
@@ -196,7 +226,7 @@ def upload():
         c.execute(qu)
         curr_photo = c.fetchone()
         print curr_photo
-        return redirect("/photo_detail/" + str(curr_photo[0]))
+        return redirect("/products")
 
 @app.route("/photo_go", methods=['GET','POST'])
 def deta():
@@ -346,7 +376,7 @@ def add_order(flag):
     total_cost = sum(cost)
     if payment_method == "credit" and int(flag) == 1:
         return redirect("/trans/" + str(total_cost+50))
-    qu = "select count(*) from (select count(*) from orders group by order_id) as x"
+    qu = "select order_id from orders order by order_id desc limit 1"
     rc = c.execute(qu)
     if rc > 0:
         new_id = int(c.fetchone()[0]) + 1
@@ -435,6 +465,13 @@ def approve(id):
     qu = "update cust_order set status='Order Placed', flag=1 where order_id=%s"
     c.execute(qu,[id])
     conn.commit()
+    qu = "select user_id from cust_order where order_id=%s"
+    c.execute(qu,[id])
+    uid = int(c.fetchone()[0])
+    qu = "select email from users where user_id=%s"
+    c.execute(qu,[uid])
+    email = c.fetchone()[0]
+    send_mail(str(email),"Your Order Has been Placed", "Order #" + str(id) + " Placed")
     return redirect("/post")
 
 
@@ -443,6 +480,13 @@ def cancel(id):
     qu = "update cust_order set status='Order Cancelled', flag=1 where order_id=%s"
     c.execute(qu,[id])
     conn.commit()
+    qu = "select user_id from cust_order where order_id=%s"
+    c.execute(qu, [id])
+    uid = int(c.fetchone()[0])
+    qu = "select email from users where user_id=%s"
+    c.execute(qu, [uid])
+    email = c.fetchone()[0]
+    send_mail(str(email), "Your Order Has been Cancelled", "Order #" + str(id) + " Placed")
     return redirect("/post")
 
 @app.route("/view_order/<id>", methods=['GET','POST'])
@@ -453,8 +497,9 @@ def viewe(id):
     qu = "select * from cust_order where order_id=%s"
     c.execute(qu, [id])
     new_data = c.fetchone()
-
     return render_template("customer-order.html", logged_in=session.get("logged_in", False),name=session.get("name",""), view_data = view_data, new_data=new_data)
+
+
 app.secret_key = 'asd'
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=True)
