@@ -199,7 +199,7 @@
                                         </thead>
                                         <tbody>
                                             {% for req in requests %}
-                                            <form action="/delete" method="POST">
+
                                             <tr>
                                                 <td>
                                                     {{ req[0] }}
@@ -209,7 +209,7 @@
                                                 <td name="item_quantity">
                                                     {{ req[2] }}
                                                 </td>
-                                                <td name="item_size"> <a href="/" class="btn btn-default">View Order</a></td>
+                                                <td name="item_size"> <a href="/view_order/{{ req[0] }}" class="btn btn-default">View Order</a></td>
                                                 {% if req[2] == 'Order Pending' %}
                                                 <td name="item_cost"> <a href="/approve_order/{{ req[0] }}" class="btn btn-default">Approve Order</a></td>
                                                 <td name="item_tc"> <a href="/cancel_order/{{ req[0] }}" class="btn btn-default">Cancel Order</a></td>
@@ -222,7 +222,7 @@
                                                 {% endif %}
 
 
-                                            </tr></form>
+                                            </tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>

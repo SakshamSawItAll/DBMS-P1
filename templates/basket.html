@@ -210,8 +210,8 @@
                                                     {{ item[2] }}
                                                 </td>
                                                 <td name="item_size">{{ item[3] }}</td>
-                                                <td name="item_cost">&#x20B9; {{ item[4] }}</td>
-                                                <td name="item_tc">&#x20B9; {{ item[11] }}</td>
+                                                <td name="item_cost">$ {{ item[4] }}</td>
+                                                <td name="item_tc">$ {{ item[11] }}</td>
                                                 <td><a href="/delete/{{ item[5] }}"><i class="fa fa-trash-o"></i></a>
                                                 </td>
                                             </tr></form>
@@ -220,7 +220,7 @@
                                         <tfoot>
                                             <tr>
                                                 <th colspan="5">Total</th>
-                                                <th colspan="2">&#x20B9; {{ total_cost }}</th>
+                                                <th colspan="2">$ {{ total_cost }}</th>
                                             </tr>
                                         </tfoot>
                                     </table>

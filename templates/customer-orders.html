@@ -181,16 +181,13 @@
 
                             <ul class="nav nav-pills nav-stacked">
                                 <li class="active">
-                                    <a href="customer-orders.html"><i class="fa fa-list"></i> My orders</a>
+                                    <a href="/orders"><i class="fa fa-list"></i> My orders</a>
                                 </li>
                                 <li>
-                                    <a href="customer-wishlist.html"><i class="fa fa-heart"></i> My wishlist</a>
+                                    <a href="/myaccount"><i class="fa fa-user"></i> My account</a>
                                 </li>
                                 <li>
-                                    <a href="customer-account.html"><i class="fa fa-user"></i> My account</a>
-                                </li>
-                                <li>
-                                    <a href="index.html"><i class="fa fa-sign-out"></i> Logout</a>
+                                    <a href="/logout"><i class="fa fa-sign-out"></i> Logout</a>
                                 </li>
                             </ul>
                         </div>
@@ -225,9 +222,9 @@
                                 <tbody>
                                 {% for order in orders %}
                                     <tr>
-                                        <th>{{ order[1] }}</th>
+                                        <th><a href="/view_order/{{ order[1] }}"> #{{ order[1] }} </a> </th>
                                         <td>{{ order[3] }}</td>
-                                        <td>&#x20B9; {{ order[2] }}</td>
+                                        <td>$ {{ order[2] }}</td>
                                         {% if order[4] == 'cod' %}
                                             <td>Cash On Delivery</td>
                                         {% else %}

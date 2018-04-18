@@ -182,7 +182,7 @@
                                              {% endfor %}
                                          </select><br>
                                             <b>Quantity: </b><input type="number" value="1" name="quantity" step="1" min="0">
-                                            <p align="center" id="price"><b>Cost (per piece): </b><font face="verdana" color="grey" size="6"> &#x20B9; {{ curr_photo[3] }} </font></p>
+                                            <p align="center" id="price"><b>Cost (per piece): </b><font face="verdana" color="grey" size="6"> &#x24; {{ curr_photo[3] }} </font></p>
 
                                       </p>
                                    </fieldset>
@@ -428,7 +428,7 @@
                 var cost = parseFloat(division) * parseFloat(strUser);
                 cost = parseInt(cost);
                 console.log(cost)
-                var val = '<b>Cost (per piece): </b><font face="verdana" color="grey" size="6">' + '&#x20B9; ' + String(cost) + '</font>';
+                var val = '<b>Cost (per piece): </b><font face="verdana" color="grey" size="6">' + '&#x24; ' + String(cost) + '</font>';
                 document.getElementById("price").innerHTML = val;
             });
         });
